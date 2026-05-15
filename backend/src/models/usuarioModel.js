@@ -1,191 +1,78 @@
 const db = require("../config/database");
 
-// Los modelos son la capa de acceso a datos: son los unicos archivos que ejecutan SQL.
-// Cada funcion retorna una Promesa (Promise) porque las consultas SQL son asincronas.
-// Una Promesa tiene dos posibles resultados:
-//   - resolve(valor): la operacion tuvo exito, entrega el resultado
-//   - reject(error):  la operacion fallo, entrega el error para que el controlador lo maneje
-
-// ─────────────────────────────────────────────────────────────────────────────
-// BUSCAR USUARIO POR EMAIL (para el login)
-// ─────────────────────────────────────────────────────────────────────────────
-const loginUsuario = (email) => {
-  return new Promise((resolve, reject) => {
-
-    // El signo ? es un "parametro preparado" (prepared statement).
-    // MySQL reemplaza el ? con el valor del array [email] de forma segura,
-    // escapando caracteres especiales para prevenir inyeccion SQL.
-    // Inyeccion SQL: tecnica de ataque donde se insertan comandos SQL en los inputs.
-    const sql = "SELECT * FROM usuarios WHERE email = ?";
-
-    db.query(sql, [email], (err, result) => {
-      if (err) reject(err);
-      else     resolve(result); // result es un array de filas; si el email no existe, es []
-    });
-  });
+const loginUsuario = async (email) => {
+  const [result] = await db.query("SELECT * FROM usuarios WHERE email = ?", [email]);
+  return result;
 };
 
-// ─────────────────────────────────────────────────────────────────────────────
-// CREAR ADMINISTRADOR
-// ─────────────────────────────────────────────────────────────────────────────
-const crearAdminDB = (usuario) => {
-  return new Promise((resolve, reject) => {
-
-    // El rol siempre es 'admin' porque este modelo solo crea administradores.
-    // Los valores de usuario.* vienen hasheados desde el controlador.
-    const sql = `
-      INSERT INTO usuarios (nombre, email, password, rol)
-      VALUES (?, ?, ?, 'admin')
-    `;
-
-    // Los valores se pasan como array en el mismo orden que los signos ?
-    db.query(sql, [usuario.nombre, usuario.email, usuario.password], (err, result) => {
-      if (err) return reject(err);
-      resolve(result); // result.insertId tiene el ID auto-generado del nuevo registro
-    });
-  });
+const crearAdminDB = async (usuario) => {
+  const [result] = await db.query(
+    `INSERT INTO usuarios (nombre, email, password, rol) VALUES (?, ?, ?, 'admin')`,
+    [usuario.nombre, usuario.email, usuario.password]
+  );
+  return result;
 };
 
-// ─────────────────────────────────────────────────────────────────────────────
-// OBTENER TODOS LOS ADMINISTRADORES
-// ─────────────────────────────────────────────────────────────────────────────
-const obtenerAdminsDB = () => {
-  return new Promise((resolve, reject) => {
-
-    // Solo se seleccionan los campos necesarios para la lista.
-    // NUNCA se incluye "password" en consultas de listado: principio de minimo privilegio.
-    const sql = `
-      SELECT id_usuario, nombre, email, estado
-      FROM usuarios
-      WHERE rol = 'admin'
-    `;
-
-    db.query(sql, (err, result) => {
-      if (err) reject(err);
-      else     resolve(result);
-    });
-  });
+const obtenerAdminsDB = async () => {
+  const [result] = await db.query(
+    `SELECT id_usuario, nombre, email, estado FROM usuarios WHERE rol = 'admin'`
+  );
+  return result;
 };
 
-// ─────────────────────────────────────────────────────────────────────────────
-// CAMBIAR ESTADO DE UN ADMINISTRADOR (activar/inactivar)
-// ─────────────────────────────────────────────────────────────────────────────
-const cambiarEstadoAdminDB = (id, estado) => {
-  return new Promise((resolve, reject) => {
-
-    const sql = "UPDATE usuarios SET estado = ? WHERE id_usuario = ?";
-
-    db.query(sql, [estado, id], (err, result) => {
-      if (err) {
-        console.error("ERROR SQL:", err);
-        reject(err);
-      } else {
-        resolve(result);
-      }
-    });
-  });
+const cambiarEstadoAdminDB = async (id, estado) => {
+  const [result] = await db.query(
+    "UPDATE usuarios SET estado = ? WHERE id_usuario = ?",
+    [estado, id]
+  );
+  return result;
 };
 
-// ─────────────────────────────────────────────────────────────────────────────
-// EDITAR ADMINISTRADOR
-// ─────────────────────────────────────────────────────────────────────────────
-const editarAdminDB = (id, usuario) => {
-  return new Promise((resolve, reject) => {
+const editarAdminDB = async (id, usuario) => {
+  const sql = `
+    UPDATE usuarios
+    SET nombre = ?, email = ?
+    ${usuario.password ? ", password = ?" : ""}
+    WHERE id_usuario = ?
+  `;
+  const params = usuario.password
+    ? [usuario.nombre, usuario.email, usuario.password, id]
+    : [usuario.nombre, usuario.email, id];
 
-    // La query SQL se construye dinamicamente:
-    // si se envio contrasena nueva se agrega ", password = ?" al UPDATE,
-    // si no se envio contrasena esa parte se omite con un string vacio.
-    // Template literals (backtick ``) permiten escribir SQL en varias lineas y usar ${...}
-    const sql = `
-      UPDATE usuarios
-      SET nombre = ?, email = ?
-      ${usuario.password ? ", password = ?" : ""}
-      WHERE id_usuario = ?
-    `;
-
-    // Los parametros tambien cambian segun si hay contrasena o no.
-    // El orden debe coincidir exactamente con el orden de los ? en la query.
-    const params = usuario.password
-      ? [usuario.nombre, usuario.email, usuario.password, id]
-      : [usuario.nombre, usuario.email, id];
-
-    db.query(sql, params, (err, result) => {
-      if (err) reject(err);
-      else     resolve(result);
-    });
-  });
+  const [result] = await db.query(sql, params);
+  return result;
 };
 
-// ─────────────────────────────────────────────────────────────────────────────
-// OBTENER ADMINISTRADOR POR ID
-// ─────────────────────────────────────────────────────────────────────────────
-const obtenerAdminPorIdDB = (id) => {
-  return new Promise((resolve, reject) => {
-    // No incluimos password en el SELECT por seguridad
-    const sql = "SELECT id_usuario, nombre, email FROM usuarios WHERE id_usuario = ?";
-
-    db.query(sql, [id], (err, result) => {
-      if (err) return reject(err);
-      // result es un array. [0] toma el primer (y unico) resultado.
-      // Si no existe el ID, result[0] sera undefined y el controlador devuelve 404.
-      resolve(result[0]);
-    });
-  });
+const obtenerAdminPorIdDB = async (id) => {
+  const [rows] = await db.query(
+    "SELECT id_usuario, nombre, email FROM usuarios WHERE id_usuario = ?",
+    [id]
+  );
+  return rows[0];
 };
 
-
-// ─────────────────────────────────────────────────────────────────────────────
-// GUARDAR TOKEN DE RECUPERACION
-// Se guarda un token temporal en la BD para validar el enlace que llega al email.
-// ─────────────────────────────────────────────────────────────────────────────
-const guardarTokenRecuperacionDB = (email, token, expiracion) => {
-  return new Promise((resolve, reject) => {
-    const sql = `
-      UPDATE usuarios
-      SET reset_token = ?, reset_token_expira = ?
-      WHERE email = ?
-    `;
-    db.query(sql, [token, expiracion, email], (err, result) => {
-      if (err) reject(err);
-      else     resolve(result);
-    });
-  });
+const guardarTokenRecuperacionDB = async (email, token, expiracion) => {
+  const [result] = await db.query(
+    `UPDATE usuarios SET reset_token = ?, reset_token_expira = ? WHERE email = ?`,
+    [token, expiracion, email]
+  );
+  return result;
 };
 
-// ─────────────────────────────────────────────────────────────────────────────
-// BUSCAR USUARIO POR TOKEN DE RECUPERACION
-// Verifica que el token exista y no haya expirado.
-// ─────────────────────────────────────────────────────────────────────────────
-const buscarPorTokenRecuperacionDB = (token) => {
-  return new Promise((resolve, reject) => {
-    const sql = `
-      SELECT id_usuario, email
-      FROM usuarios
-      WHERE reset_token = ? AND reset_token_expira > ?
-    `;
-    db.query(sql, [token, new Date()], (err, result) => {
-      if (err) reject(err);
-      else     resolve(result[0]);
-    });
-  });
+const buscarPorTokenRecuperacionDB = async (token) => {
+  const [rows] = await db.query(
+    `SELECT id_usuario, email FROM usuarios WHERE reset_token = ? AND reset_token_expira > ?`,
+    [token, new Date()]
+  );
+  return rows[0];
 };
 
-// ─────────────────────────────────────────────────────────────────────────────
-// ACTUALIZAR CONTRASEÑA Y LIMPIAR TOKEN
-// Una vez reseteada la contrasena, el token se elimina para que no pueda reutilizarse.
-// ─────────────────────────────────────────────────────────────────────────────
-const actualizarPasswordDB = (id, hashedPassword) => {
-  return new Promise((resolve, reject) => {
-    const sql = `
-      UPDATE usuarios
-      SET password = ?, reset_token = NULL, reset_token_expira = NULL
-      WHERE id_usuario = ?
-    `;
-    db.query(sql, [hashedPassword, id], (err, result) => {
-      if (err) reject(err);
-      else     resolve(result);
-    });
-  });
+const actualizarPasswordDB = async (id, hashedPassword) => {
+  const [result] = await db.query(
+    `UPDATE usuarios SET password = ?, reset_token = NULL, reset_token_expira = NULL WHERE id_usuario = ?`,
+    [hashedPassword, id]
+  );
+  return result;
 };
 
 module.exports = {
