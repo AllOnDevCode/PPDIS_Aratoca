@@ -207,18 +207,33 @@ const obtenerAdminPorId = async (req, res) => {
 const recuperarContrasena = async (req, res) => {
   const { email } = req.body;
 
+  console.log("📨 [recuperarContrasena] Solicitud recibida");
+  console.log("📧 Email recibido:", email);
+  console.log("🔑 EMAIL_USER:", process.env.EMAIL_USER);
+  console.log("🔑 EMAIL_PASS:", process.env.EMAIL_PASS ? "✅ definida" : "❌ no definida");
+  console.log("🌐 FRONTEND_URL:", process.env.FRONTEND_URL);
+
   try {
+    console.log("🔍 Buscando usuario en la base de datos...");
     const result = await loginUsuario(email);
+    console.log("📊 Resultado DB:", result.length > 0 ? `Usuario encontrado (id: ${result[0].id_usuario})` : "Usuario NO encontrado");
 
     if (result.length === 0) {
+      console.log("⚠️ Email no existe, respondiendo con mensaje genérico");
       return res.json({ mensaje: "Si el correo existe, recibirás un enlace." });
     }
 
+    console.log("🎲 Generando token...");
     const token = crypto.randomBytes(32).toString("hex");
     const expiracion = new Date(Date.now() + 60 * 60 * 1000);
+    console.log("✅ Token generado:", token.substring(0, 10) + "...");
+    console.log("⏰ Expira:", expiracion);
 
+    console.log("💾 Guardando token en base de datos...");
     await guardarTokenRecuperacionDB(email, token, expiracion);
+    console.log("✅ Token guardado en DB");
 
+    console.log("📮 Creando transporter de nodemailer...");
     const transporter = nodemailer.createTransport({
       service: "gmail",
       auth: {
@@ -227,10 +242,15 @@ const recuperarContrasena = async (req, res) => {
       }
     });
 
-    // ↓ aquí va esa línea, dentro de esta función
-    const enlace = `${process.env.FRONTEND_URL}/reset-password?token=${token}`;
+    console.log("🔐 Verificando conexión con Gmail...");
+    await transporter.verify();
+    console.log("✅ Conexión con Gmail OK");
 
-    await transporter.sendMail({
+    const enlace = `${process.env.FRONTEND_URL}/reset-password?token=${token}`;
+    console.log("🔗 Enlace generado:", enlace);
+
+    console.log("📤 Enviando correo a:", email);
+    const info = await transporter.sendMail({
       from: `"Soporte" <${process.env.EMAIL_USER}>`,
       to: email,
       subject: "Recuperar contraseña",
@@ -241,11 +261,15 @@ const recuperarContrasena = async (req, res) => {
         <p>Si no solicitaste esto, ignora este correo.</p>
       `
     });
+    console.log("✅ Correo enviado exitosamente. MessageId:", info.messageId);
 
     res.json({ mensaje: "Si el correo existe, recibirás un enlace." });
 
   } catch (error) {
-    console.error(error);
+    console.error("❌ ERROR en recuperarContrasena:");
+    console.error("   Mensaje:", error.message);
+    console.error("   Código:", error.code);
+    console.error("   Stack:", error.stack);
     res.status(500).json({ mensaje: "Error al procesar la solicitud" });
   }
 };
