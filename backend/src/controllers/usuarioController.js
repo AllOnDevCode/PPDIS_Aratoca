@@ -61,9 +61,9 @@ const login = async (req, res) => {
       token,
       usuario: {
         id_usuario: usuario.id_usuario,
-        nombre:     usuario.nombre,
-        email:      usuario.email,
-        rol:        usuario.rol
+        nombre: usuario.nombre,
+        email: usuario.email,
+        rol: usuario.rol
       }
     });
 
@@ -235,16 +235,14 @@ const recuperarContrasena = async (req, res) => {
 
     console.log("📮 Creando transporter de nodemailer...");
     const transporter = nodemailer.createTransport({
-      service: "gmail",
+      host: process.env.EMAIL_HOST,
+      port: Number(process.env.EMAIL_PORT),
+      secure: false,
       auth: {
         user: process.env.EMAIL_USER,
         pass: process.env.EMAIL_PASS
       }
     });
-
-    console.log("🔐 Verificando conexión con Gmail...");
-    await transporter.verify();
-    console.log("✅ Conexión con Gmail OK");
 
     const enlace = `${process.env.FRONTEND_URL}/reset-password?token=${token}`;
     console.log("🔗 Enlace generado:", enlace);
