@@ -6,6 +6,7 @@ const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
 const crypto = require("crypto");
 const nodemailer = require("nodemailer");
+const { Resend } = require("resend");
 
 const {
   loginUsuario, crearAdminDB, cambiarEstadoAdminDB, editarAdminDB,
@@ -209,8 +210,8 @@ const recuperarContrasena = async (req, res) => {
 
   console.log("📨 [recuperarContrasena] Solicitud recibida");
   console.log("📧 Email recibido:", email);
-  console.log("🔑 EMAIL_USER:", process.env.EMAIL_USER);
-  console.log("🔑 EMAIL_PASS:", process.env.EMAIL_PASS ? "✅ definida" : "❌ no definida");
+  console.log("🔑 BREVO_USER:", process.env.BREVO_USER ? "✅ definida" : "❌ no definida");
+  console.log("🔑 BREVO_PASS:", process.env.BREVO_PASS ? "✅ definida" : "❌ no definida");
   console.log("🌐 FRONTEND_URL:", process.env.FRONTEND_URL);
 
   try {
@@ -233,23 +234,23 @@ const recuperarContrasena = async (req, res) => {
     await guardarTokenRecuperacionDB(email, token, expiracion);
     console.log("✅ Token guardado en DB");
 
-    console.log("📮 Creando transporter de nodemailer...");
-    const transporter = nodemailer.createTransport({
-      host: process.env.EMAIL_HOST,
-      port: Number(process.env.EMAIL_PORT),
-      secure: false,
-      auth: {
-        user: process.env.EMAIL_USER,
-        pass: process.env.EMAIL_PASS
-      }
-    });
-
     const enlace = `${process.env.FRONTEND_URL}/reset-password?token=${token}`;
     console.log("🔗 Enlace generado:", enlace);
 
+    console.log("📮 Creando transporter con Brevo...");
+    const transporter = nodemailer.createTransport({
+      host: process.env.BREVO_HOST,
+      port: Number(process.env.BREVO_PORT),
+      secure: false,
+      auth: {
+        user: process.env.BREVO_USER,
+        pass: process.env.BREVO_PASS
+      }
+    });
+
     console.log("📤 Enviando correo a:", email);
     const info = await transporter.sendMail({
-      from: `"Soporte" <${process.env.EMAIL_USER}>`,
+      from: `"Soporte" <${process.env.BREVO_USER}>`,
       to: email,
       subject: "Recuperar contraseña",
       html: `
@@ -259,8 +260,8 @@ const recuperarContrasena = async (req, res) => {
         <p>Si no solicitaste esto, ignora este correo.</p>
       `
     });
-    console.log("✅ Correo enviado exitosamente. MessageId:", info.messageId);
 
+    console.log("✅ Correo enviado. MessageId:", info.messageId);
     res.json({ mensaje: "Si el correo existe, recibirás un enlace." });
 
   } catch (error) {
