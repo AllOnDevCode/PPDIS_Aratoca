@@ -250,7 +250,7 @@ const recuperarContrasena = async (req, res) => {
 
     console.log("📤 Enviando correo a:", email);
     const info = await transporter.sendMail({
-      from: `"Soporte" <${process.env.BREVO_USER}>`,
+      from: `"Soporte" <${process.env.BREVO_FROM}>`,
       to: email,
       subject: "Recuperar contraseña",
       html: `
