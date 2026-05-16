@@ -169,37 +169,20 @@ const obtenerAdminPorId = async (req, res) => {
 // ─────────────────────────────────────────────────────────────────────────────
 const recuperarContrasena = async (req, res) => {
   const { email } = req.body;
-
-  console.log("📨 [recuperarContrasena] Solicitud recibida");
-  console.log("📧 Email recibido:", email);
-  console.log("🔑 BREVO_API_KEY:", process.env.BREVO_API_KEY ? "✅ definida" : "❌ no definida");
-  console.log("📨 BREVO_FROM:", process.env.BREVO_FROM);
-  console.log("🌐 FRONTEND_URL:", process.env.FRONTEND_URL);
-
   try {
-    console.log("🔍 Buscando usuario en la base de datos...");
     const result = await loginUsuario(email);
-    console.log("📊 Resultado DB:", result.length > 0 ? `Usuario encontrado (id: ${result[0].id_usuario})` : "Usuario NO encontrado");
 
     if (result.length === 0) {
-      console.log("⚠️ Email no existe, respondiendo con mensaje genérico");
       return res.json({ mensaje: "Si el correo existe, recibirás un enlace." });
     }
 
-    console.log("🎲 Generando token...");
     const token = crypto.randomBytes(32).toString("hex");
     const expiracion = new Date(Date.now() + 60 * 60 * 1000);
-    console.log("✅ Token generado:", token.substring(0, 10) + "...");
-    console.log("⏰ Expira:", expiracion);
 
-    console.log("💾 Guardando token en base de datos...");
     await guardarTokenRecuperacionDB(email, token, expiracion);
-    console.log("✅ Token guardado en DB");
 
     const enlace = `${process.env.FRONTEND_URL}/reset-password?token=${token}`;
-    console.log("🔗 Enlace generado:", enlace);
 
-    console.log("📮 Enviando correo con Brevo API...");
     const client = SibApiV3Sdk.ApiClient.instance;
     client.authentications["api-key"].apiKey = process.env.BREVO_API_KEY;
 
@@ -216,7 +199,6 @@ const recuperarContrasena = async (req, res) => {
     `
     });
 
-    console.log("✅ Correo enviado. MessageId:", respuesta.messageId);
     res.json({ mensaje: "Si el correo existe, recibirás un enlace." });
 
   } catch (error) {
