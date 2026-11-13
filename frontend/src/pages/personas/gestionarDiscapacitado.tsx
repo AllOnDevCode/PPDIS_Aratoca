@@ -37,11 +37,27 @@ export default function EditarDiscapacitado() {
     }
   }
 
-  // Filtra el array de personas segun el documento que escribe el usuario
-  // includes() devuelve true si el string contiene el texto buscado
-  const personasFiltradas = personas.filter((p) =>
-    p.documento?.includes(busqueda)
-  );
+  // Normaliza un texto para comparar: minusculas y sin tildes (ej: "Gómez" -> "gomez")
+  const normalizar = (texto: string) =>
+    texto.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+
+  // Filtra por documento o por nombres y apellidos.
+  // El texto se divide en palabras y cada palabra debe aparecer en el documento
+  // o en algun nombre/apellido, asi "juan perez" o "perez juan" encuentran a "Juan Carlos Perez Gomez".
+  const palabrasBusqueda = normalizar(busqueda).split(/\s+/).filter(Boolean);
+  const personasFiltradas = personas.filter((p) => {
+    const textoPersona = normalizar(
+      [
+        p.documento,
+        p.primer_nombre,
+        p.segundo_nombre,
+        p.primer_apellido,
+        p.segundo_apellido,
+        p.nombre_completo,
+      ].filter(Boolean).join(" ")
+    );
+    return palabrasBusqueda.every((palabra) => textoPersona.includes(palabra));
+  });
 
   const abrirModal = (persona: Persona) => {
     setPersonaSeleccionada(persona);
@@ -106,10 +122,10 @@ export default function EditarDiscapacitado() {
             </div>
           )}
 
-          {/* Campo de busqueda por numero de documento */}
+          {/* Campo de busqueda por numero de documento, nombres o apellidos */}
           <input
             className="input-busqueda"
-            placeholder="Buscar por documento"
+            placeholder="Buscar por documento, nombres o apellidos"
             value={busqueda}
             onChange={(e) => setBusqueda(e.target.value)}
           />
